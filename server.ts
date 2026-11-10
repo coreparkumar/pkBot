@@ -30,7 +30,7 @@ if (apiKey && apiKey !== 'MY_GEMINI_API_KEY' && !apiKey.startsWith('MY_')) {
       },
     });
   } catch (err) {
-    console.error('Error initializing GoogleGenAI:', err);
+    console.error('Unable to initialize the transcription service.');
   }
 }
 
@@ -151,7 +151,7 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
         res.json({ text: transcribedText, source: 'gemini-transcribe' });
         return;
       } catch (err: any) {
-        console.warn('Server transcription via Gemini failed or timed out:', err?.message);
+        console.warn('Server transcription via Gemini failed or timed out.');
       }
     }
 
@@ -161,77 +161,76 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
       source: 'fallback-transcribe',
     });
   } catch (error: any) {
-    console.error('Error in /api/transcribe:', error);
+    console.error('Unable to process audio transcription.');
     res.status(500).json({ error: 'Failed to transcribe audio' });
   }
 });
 
 // API Route for dynamic chat queries
 app.post('/api/chat', async (req: Request, res: Response) => {
+  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  if (!openRouterApiKey) {
+    res.status(500).json({ error: 'Server configuration error: OPENROUTER_API_KEY is not configured.' });
+    return;
+  }
+
   try {
     const { message, history } = req.body;
 
-    if (!message || typeof message !== 'string') {
+    if (typeof message !== 'string' || !message.trim()) {
       res.status(400).json({ error: 'Message is required' });
       return;
     }
 
     const trimmedQuery = message.trim();
+    const recentHistory = Array.isArray(history)
+      ? history.slice(-6).flatMap((item: any) => {
+          if (!item || typeof item.text !== 'string' || !item.text.trim()) return [];
+          if (item.role !== 'user' && item.role !== 'model' && item.role !== 'bot') return [];
+          return [{ role: item.role === 'user' ? 'user' : 'assistant', content: item.text.slice(0, 2000) }];
+        })
+      : [];
 
-    // If Gemini AI client is available, dynamically query with full context & boundary rules
-    if (aiClient) {
-      try {
-        const contents: any[] = [];
+    const model = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
 
-        // Add recent conversation history if provided
-        if (Array.isArray(history) && history.length > 0) {
-          const recentHistory = history.slice(-6);
-          for (const item of recentHistory) {
-            contents.push({
-              role: item.role === 'bot' ? 'model' : 'user',
-              parts: [{ text: item.text }],
-            });
-          }
-        }
+    try {
+      const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openRouterApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: PARITOSH_SYSTEM_PROMPT },
+            ...recentHistory,
+            { role: 'user', content: trimmedQuery },
+          ],
+        }),
+        signal: controller.signal,
+      });
 
-        contents.push({
-          role: 'user',
-          parts: [{ text: trimmedQuery }],
-        });
-
-        const generatePromise = aiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents,
-          config: {
-            systemInstruction: PARITOSH_SYSTEM_PROMPT,
-          },
-        });
-
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Gemini request timed out')), 6000)
-        );
-
-        const response: any = await Promise.race([generatePromise, timeoutPromise]);
-        const textOutput = response.text?.trim();
-
-        if (textOutput) {
-          res.json({ text: textOutput, source: 'gemini' });
-          return;
-        }
-      } catch (genError: any) {
-        console.warn('Gemini API dynamic generation timed out or failed, applying boundary-checked fallback:', genError?.message);
+      if (!upstream.ok) {
+        res.status(502).json({ error: 'The answer service is temporarily unavailable. Please try again.' });
+        return;
       }
-    }
 
-    // Fallback response with STRICT BOUNDARY RULE adherence
-    const responseText = generateContextualFallback(trimmedQuery);
-    res.json({ text: responseText, source: 'contextual-fallback' });
-  } catch (error: any) {
-    console.error('API Error in /api/chat:', error);
-    res.status(500).json({
-      error: 'Failed to process voice query',
-      details: error?.message || 'Internal error',
-    });
+      const payload = await upstream.json() as { choices?: Array<{ message?: { content?: string } }> };
+      const textOutput = payload.choices?.[0]?.message?.content?.trim();
+      if (!textOutput) {
+        res.status(502).json({ error: 'The answer service returned an empty response. Please try again.' });
+        return;
+      }
+
+      res.json({ text: textOutput, source: 'openrouter' });
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch {
+    res.status(502).json({ error: 'Unable to get an answer right now. Please try again.' });
   }
 });
 
@@ -268,6 +267,6 @@ async function startServer() {
 }
 
 startServer().catch((err) => {
-  console.error('Failed to start server:', err);
+  console.error('Failed to start the server.');
   process.exit(1);
 });

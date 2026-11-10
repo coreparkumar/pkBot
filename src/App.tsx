@@ -97,8 +97,8 @@ export default function App() {
     }
   }, []);
 
-  // Send EXACT transcript text to Gemini API backend
-  const callGeminiAPI = useCallback(async (userSpokenText: string): Promise<string> => {
+  // Send the transcript to the server-side OpenRouter endpoint; never put API credentials in the browser.
+  const callOpenRouterAPI = useCallback(async (userSpokenText: string): Promise<string> => {
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -110,32 +110,13 @@ export default function App() {
       });
 
       if (!res.ok) {
-        throw new Error(`Server returned ${res.status}`);
+        return "I'm temporarily unable to answer. Please try again shortly.";
       }
 
       const data = await res.json();
       return data.text || "I'm sorry, that is outside my context.";
-    } catch (err: any) {
-      console.warn('Backend query error, checking boundary for local response:', err);
-
-      // Boundary check for offline fallback
-      const lower = userSpokenText.toLowerCase();
-      const isRelevant = [
-        'paritosh', 'kumar', 'dotkonnect', 'evaluator', 'evaluators', 'mitratech', 'teamconnect', 'sisense', 'support',
-        'troubleshoot', 'l2', 'l3', 'python', 'fastapi', 'ollama', 'langgraph',
-        'rag', 'chromadb', 'megamind', 'lazy-tube', 'phonechecker', 'auditad',
-        'invigilator', 'remote', 'relocat', 'stoic', 'vibe coder',
-        'experience', 'resume', 'project', 'background', 'certif', 'stack', 'sql', 'oracle'
-      ].some((term) => lower.includes(term));
-
-      if (isRelevant) {
-        if (lower.includes('dotkonnect') || lower.includes('evaluator')) {
-          return "I am excited to interview with Dotkonnect evaluators. With over 12 years in enterprise L2 and L3 support and my passion for building local AI systems, I look forward to contributing deeply to mission-critical platforms and agile AI operations.";
-        }
-        return "I am an IT Application Support Specialist and AI System Builder with over 12 years of enterprise troubleshooting experience, currently supporting TeamConnect at Mitratech. I specialize in combining rock-solid L2/L3 support with modern local-first AI agents, Python automation, and Stoic resilience.";
-      }
-
-      return "I'm sorry, that is outside my context.";
+    } catch {
+      return "I'm temporarily unable to answer. Please try again shortly.";
     }
   }, [chatHistory]);
 
@@ -162,7 +143,7 @@ export default function App() {
       setActiveQuestionId(presetId);
     }
 
-    const aiResponse = await callGeminiAPI(query);
+    const aiResponse = await callOpenRouterAPI(query);
 
     const botTurn: TranscriptTurn = {
       id: `turn-bot-${Date.now()}`,
