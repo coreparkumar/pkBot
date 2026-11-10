@@ -156,7 +156,7 @@ export default function App() {
     setChatHistory((prev) => [...prev, { role: 'model', text: aiResponse }]);
     setTranscripts((prev) => [...prev, botTurn]);
     speakText(aiResponse);
-  }, [callGeminiAPI, speakText]);
+  }, [callOpenRouterAPI, speakText]);
 
   // Handle Preset Question click
   const handleSelectPreset = useCallback((preset: PresetQuestion) => {
@@ -214,7 +214,7 @@ export default function App() {
         setInterimTranscript('');
 
         // 2. Send EXACT transcript text to Gemini API backend
-        const aiResponse = await callGeminiAPI(userSpokenText);
+        const aiResponse = await callOpenRouterAPI(userSpokenText);
 
         // 3. Display and Speak AI Response
         setChatHistory((prev) => [...prev, { role: 'model', text: aiResponse }]);
@@ -277,7 +277,7 @@ export default function App() {
           speechService.stopAudioAnalyzer();
 
           // 2. Send EXACT transcript text to Gemini API backend
-          const aiResponse = await callGeminiAPI(userSpokenText);
+          const aiResponse = await callOpenRouterAPI(userSpokenText);
 
           // 3. Display and Speak AI Response
           setChatHistory((prev) => [...prev, { role: 'model', text: aiResponse }]);
@@ -354,7 +354,7 @@ export default function App() {
         speechService.stopAudioAnalyzer();
 
         // 2. Send EXACT transcript text to Gemini API backend
-        const aiResponse = await callGeminiAPI(userSpokenText);
+        const aiResponse = await callOpenRouterAPI(userSpokenText);
 
         // 3. Display and Speak AI Response
         setChatHistory((prev) => [...prev, { role: 'model', text: aiResponse }]);
@@ -384,7 +384,7 @@ export default function App() {
     if (!started) {
       setStatus('idle');
     }
-  }, [callGeminiAPI, handleSetVoiceMode, handleStopSpeaking, speakText, status, voiceMode]);
+  }, [callOpenRouterAPI, handleSetVoiceMode, handleStopSpeaking, speakText, status, voiceMode]);
 
   // Reset session
   const handleClearSession = () => {
