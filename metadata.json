@@ -1,0 +1,10 @@
+{
+  "name": "Paritosh Kumar - AI Voice Persona & Interview Console",
+  "description": "Interactive real-time voice bot persona representing Paritosh Kumar, Enterprise IT Application Support Specialist. Features live Speech-to-Text, natural Text-to-Speech synthesis, audio visualization, interview presets, and session logs export.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
